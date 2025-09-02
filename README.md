@@ -28,5 +28,5 @@ Excel dosyası yükleyerek ürün (SKU) bazında stok gün (Days of Coverage - D
 ## Canlı Demo
 
 ✨ [Buradan uygulamayı deneyin](https://share.streamlit.io/)  
+https://skudochesap.streamlit.app/
 
-> 📌 Linki, Streamlit Cloud üzerinde deploy ettikten sonra güncelleyebilirsiniz.
