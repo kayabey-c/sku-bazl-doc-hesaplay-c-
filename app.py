@@ -1,49 +1,40 @@
 # app.py
 # -*- coding: utf-8 -*-
-# NOT: Sadece I/O Streamlit'e uyarlandı. Hesap mantığı ve blok içerikleri korunmuştur.
+# Not: Sadece I/O Streamlit'e uyarlandı. Hesap mantığı ve blok içerikleri korunmuştur.
 
 import io
 import re
 import unicodedata
 import calendar
-from datetime import datetime
-import datetime as _dt
+import datetime as dt
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
-# ---------------- Streamlit başlıkları (minimal) ----------------
+# -------- Streamlit UI (minimal) --------
 st.set_page_config(page_title="DOC Hesaplayıcı (SKU Bazlı)", layout="wide")
 st.title("📦 Days of Coverage (DOC) — SKU Bazlı")
 
 uploaded_file = st.file_uploader("Excel dosyasını yükleyin (.xlsx)", type=["xlsx"])
 run = st.button("Hesapla", type="primary", disabled=uploaded_file is None)
-
 if not run:
     st.stop()
-
 if uploaded_file is None:
     st.error("Lütfen bir .xlsx dosyası yükleyin.")
     st.stop()
 
 # ==============================
-# Colab'daki 2. BLOK BAŞLANGIÇ
+# 2. BLOK (Colab eşleniği)
 # ==============================
-
-# Colab: uploaded = files.upload() ... df = pd.read_excel(...)
-# Streamlit eşleniği:
 df = pd.read_excel(uploaded_file)
 
-# 2.BLOK
 # Plant ve Key Figure değişken ataması
 plant_col = "Plant"
 kf_col = "Key Figure"
 
-import datetime as dt_for_block2
-
 # Month columns yakalar (datetime tipindeki)
-months_columns = [c for c in df.columns if isinstance(c, (pd.Timestamp, dt_for_block2.datetime))]
+months_columns = [c for c in df.columns if isinstance(c, (pd.Timestamp, dt.datetime))]
 months_columns.sort()
 print("Months columns:", months_columns[:6], "... toplam:", len(months_columns))
 
@@ -109,7 +100,7 @@ def is_total_like(val) -> bool:
 df["_kf_class"] = df[kf_col].map(classify_kf)
 
 # ⚠️ ÖNEMLİ: consensus satırlarını EIP'e çeviren satır kaldırıldı!
-# df.loc[df["_kf_class"] == "consensus", "Plant"] = "EIP"  # ← SİLİNDİ / YORUMA ALINDI
+# df.loc[df["_kf_class"] == "consensus", "Plant"] = "EIP"
 
 print("\nKey Figure eşleştirme sonucu (unique):")
 print(df[["_kf_class", kf_col]].drop_duplicates())
@@ -131,22 +122,16 @@ print("\nConsensus satırlarının Plant dağılımı (kontrol amaçlı):")
 print(_consensus_plant_counts)
 
 # =================================
-# Colab'daki 3. BLOK BAŞLANGIÇ
+# 3. BLOK (Colab eşleniği)
 # =================================
-import re as re_block3, unicodedata as u_block3, datetime as _dt_block3
-import pandas as pd as pd_block3
-import numpy as np as np_block3
+import datetime as _dt  # bu blokta _dt takma adı kullanılıyor
 
-plant_col = "Plant"
-kf_col    = "Key Figure"
-
-# --- Yardımcılar ---
 def norm_text_3(s: str) -> str:
     s = str(s).strip()
-    s = u_block3.normalize("NFKD", s)
-    s = "".join(ch for ch in s if not u_block3.combining(ch))
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
     s = s.lower()
-    s = re_block3.sub(r"\s+", " ", s)
+    s = re.sub(r"\s+", " ", s)
     return s
 
 KF_PATTERNS_3 = {
@@ -179,7 +164,7 @@ def classify_kf_3(val):
 def detect_month_columns_flexible(df_in: pd.DataFrame):
     month_cols = []
     for c in df_in.columns:
-        if isinstance(c, (pd.Timestamp, _dt_block3.datetime)):
+        if isinstance(c, (pd.Timestamp, _dt.datetime)):
             ts = pd.Timestamp(c)
             month_cols.append((c, pd.Timestamp(ts.year, ts.month, 1)))
             continue
@@ -385,10 +370,8 @@ total_monthly["DOC_days"] = doc_vals_total
 print("Hazır: sku_doc_res (ürün bazlı DOC, konsensus sadece EIP'e ait kodlardan) ve total_monthly (toplam).")
 
 # =================================
-# Colab'daki 4. BLOK BAŞLANGIÇ
+# 4. BLOK (Colab eşleniği) – İndirme
 # =================================
-# Colab: Excel'e yazıp files.download(...)
-# Streamlit: Bellekte Excel yazıp download_button ile indir.
 
 # Ürün bazlı çıktı
 cols_order = [
@@ -427,7 +410,7 @@ with pd.ExcelWriter(total_buffer, engine="xlsxwriter") as writer:
     total_monthly_reset.to_excel(writer, index=False, sheet_name="DOC_summary")
 total_buffer.seek(0)
 
-# İndirme butonları (yalnızca gerekli iki dosya)
+# İndirme butonları
 c1, c2 = st.columns(2)
 with c1:
     st.download_button(
