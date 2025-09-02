@@ -1,44 +1,32 @@
 # app.py
 # -*- coding: utf-8 -*-
-# Not: Sadece I/O Streamlit'e uyarlandı. Hesap mantığı ve blok içerikleri korunmuştur.
 
 import io
 import re
 import unicodedata
-import calendar
 import datetime as dt
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
-# -------- Streamlit UI (minimal) --------
-st.set_page_config(page_title="DOC Hesaplayıcı (SKU Bazlı)", layout="wide")
-st.title("📦 Days of Coverage (DOC) — SKU Bazlı")
+st.set_page_config(page_title="Days of Coverage (DOC) Hesaplayıcı", layout="wide")
+st.title("🧮 Days of Coverage (DOC) Hesaplayıcı")
+st.caption("Excel yükleyin → projected stock ve consensus demand üzerinden DOC hesaplayın.")
 
-uploaded_file = st.file_uploader("Excel dosyasını yükleyin (.xlsx)", type=["xlsx"])
-run = st.button("Hesapla", type="primary", disabled=uploaded_file is None)
-if not run:
-    st.stop()
+uploaded_file = st.file_uploader("Excel'i sürükleyip bırakın", type=["xlsx"])
 if uploaded_file is None:
-    st.error("Lütfen bir .xlsx dosyası yükleyin.")
     st.stop()
 
-# ==============================
-# 2. BLOK (Colab eşleniği)
-# ==============================
+# ===== 2. BLOK (Colab ile aynı mantık) =====
 df = pd.read_excel(uploaded_file)
 
-# Plant ve Key Figure değişken ataması
 plant_col = "Plant"
 kf_col = "Key Figure"
 
-# Month columns yakalar (datetime tipindeki)
 months_columns = [c for c in df.columns if isinstance(c, (pd.Timestamp, dt.datetime))]
 months_columns.sort()
-print("Months columns:", months_columns[:6], "... toplam:", len(months_columns))
 
-# Temizlenmiş Metin
 def norm_text(s: str) -> str:
     s = str(s).strip()
     s = unicodedata.normalize("NFKD", s)
@@ -47,7 +35,6 @@ def norm_text(s: str) -> str:
     s = re.sub(r"\s+", " ", s)
     return s
 
-# Key Figure türleri
 KF_PATTERNS = {
     "consensus": [
         "kisit siz consensus",
@@ -69,7 +56,6 @@ KF_PATTERNS = {
     "doc": ["unconstrained days of coverage", "days of coverage"]
 }
 
-# key figure'leri tek tip kategori etiketlerine çevirmek
 def classify_kf(val):
     v = norm_text(val)
     for key, patterns in KF_PATTERNS.items():
@@ -78,53 +64,11 @@ def classify_kf(val):
                 return key
     return None
 
-# bitmiş ürün tespitinde kullanılacak kalıplar
-FG_PATTERNS = [
-    "bitmis urun", "finished good", "finished goods", "fg"
-]
-
-def is_finished_good(val) -> bool:
-    v = norm_text(val)
-    return any(p in v for p in FG_PATTERNS)
-
-# total/grand total gibi satırları ayıklamak için
-TOTAL_TOKENS = [
-    "toplam", "genel toplam", "grand total", "total", "sum", "subtotal", "ara toplam"
-]
-
-def is_total_like(val) -> bool:
-    v = norm_text(val)
-    return any(tok in v for tok in TOTAL_TOKENS)
-
-# key figure kategorilerini yazdırmak
 df["_kf_class"] = df[kf_col].map(classify_kf)
-
-# ⚠️ ÖNEMLİ: consensus satırlarını EIP'e çeviren satır kaldırıldı!
-# df.loc[df["_kf_class"] == "consensus", "Plant"] = "EIP"
-
-print("\nKey Figure eşleştirme sonucu (unique):")
-print(df[["_kf_class", kf_col]].drop_duplicates())
-
-# ✅ EŞLEŞME TESTİ – Gözle kontrol için
 df["_key_figure_normalized"] = df[kf_col].map(norm_text)
-print("\n--- İçinde 'consensus' geçen normalized satırlar ---")
-print(df[df["_key_figure_normalized"].str.contains("consensus", na=False)][[kf_col, "_key_figure_normalized"]])
 
-# İsteğe bağlı: consensus satırlarında Plant dağılımını göster (EIP/GP kontrolü)
-_consensus_plant_counts = (
-    df.loc[df["_kf_class"].eq("consensus")]
-      .assign(_plant=df.get(plant_col, pd.Series(index=df.index)).astype(str).str.upper())
-      .groupby("_plant")
-      .size()
-      .sort_values(ascending=False)
-)
-print("\nConsensus satırlarının Plant dağılımı (kontrol amaçlı):")
-print(_consensus_plant_counts)
-
-# =================================
-# 3. BLOK (Colab eşleniği)
-# =================================
-import datetime as _dt  # bu blokta _dt takma adı kullanılıyor
+# ===== 3. BLOK (Colab ile aynı mantık) =====
+import datetime as _dt
 
 def norm_text_3(s: str) -> str:
     s = str(s).strip()
@@ -151,7 +95,6 @@ KF_PATTERNS_3 = {
     ],
     "doc": ["unconstrained days of coverage","days of coverage"]
 }
-
 def classify_kf_3(val):
     v = norm_text_3(val)
     for key, pats in KF_PATTERNS_3.items():
@@ -160,7 +103,6 @@ def classify_kf_3(val):
                 return key
     return None
 
-# --- Ay kolonlarını esnek yakala ---
 def detect_month_columns_flexible(df_in: pd.DataFrame):
     month_cols = []
     for c in df_in.columns:
@@ -181,7 +123,6 @@ def detect_month_columns_flexible(df_in: pd.DataFrame):
 month_cols = detect_month_columns_flexible(df)
 assert month_cols, "Ay kolonları bulunamadı. Başlıklar datetime olmalı veya 'YYYY-MM-DD ...' ile başlamalı."
 
-# --- Ürün adı & kod kolonları ---
 name_candidates = ["Product (Text-TR)","Product Name","Product","Ürün","Urun",
                    "Product (Text-EN)","Description","Malzeme Açıklaması","Aciklama"]
 name_col = next((c for c in name_candidates if c in df.columns), None)
@@ -192,7 +133,6 @@ mat_col = next((c for c in mat_candidates if c in df.columns), None)
 if mat_col:
     df[mat_col] = df[mat_col].astype(str).str.strip()
 
-# --- Normalize ürün key ---
 def norm_strict(s: str) -> str:
     s = str(s).strip()
     s = unicodedata.normalize("NFKD", s)
@@ -200,8 +140,6 @@ def norm_strict(s: str) -> str:
     return s.lower()
 
 df["PRODUCT_KEY"] = df[name_col].map(norm_strict)
-
-# --- KF sınıfı ve Plant normalizasyonu (Plant'ı zorla EIP yapmıyoruz) ---
 df["_kf_class"] = df[kf_col].map(classify_kf_3)
 
 def safe_series(df_in, colname):
@@ -211,11 +149,9 @@ def safe_series(df_in, colname):
 
 plant_series  = safe_series(df, "Plant")
 plant1_series = safe_series(df, "Plant-1")
-
 df["_plant_norm"] = (plant_series + " " + plant1_series).str.upper()
 df["_plant_norm"] = df["_plant_norm"].str.extract(r"(EIP|GP)", expand=False)
 
-# --- Long form ---
 month_names = [c for c, _ in month_cols]
 col_to_ts   = dict(month_cols)
 
@@ -232,7 +168,6 @@ df_long["month_ts"]  = df_long["month_col"].map(col_to_ts)
 df_long["_kf_class"] = df_long[kf_col].map(classify_kf_3)
 df_long["value"]     = pd.to_numeric(df_long["value"], errors="coerce")
 
-# --- Kodun EIP'e ait olup olmadığını tespit (herhangi bir satırda EIP geçmesi yeter) ---
 if mat_col:
     eip_code_flag = (
         df_long
@@ -246,11 +181,9 @@ if mat_col:
 else:
     eip_code_flag = None
 
-# --- Filtreler ---
 mask_projected = df_long["_kf_class"].eq("projected_stock")
 mask_consensus_anyplant = df_long["_kf_class"].eq("consensus")
 
-# --- Proj. stok: tüm plantlerden (EIP + GP), ürün bazında ---
 proj_name_month = (
     df_long.loc[mask_projected]
            .dropna(subset=["PRODUCT_KEY", name_col, "month_ts"])
@@ -259,7 +192,6 @@ proj_name_month = (
            .rename("monthly_projected_all_plants")
 )
 
-# --- Konsensus: SADECE EIP'e ait kod(lar)dan, ürün bazında ---
 if mat_col:
     cons_df = (
         df_long.loc[mask_consensus_anyplant]
@@ -273,7 +205,6 @@ if mat_col:
                .rename("monthly_consensus_eip_only_from_eip_codes")
     )
 else:
-    # Malzeme kodu yoksa, satır bazında Plant filtresiyle sadece EIP consensus al
     cons_name_month = (
         df_long.loc[mask_consensus_anyplant & df_long["_plant_norm"].eq("EIP")]
                .dropna(subset=["PRODUCT_KEY", name_col, "month_ts"])
@@ -282,11 +213,9 @@ else:
                .rename("monthly_consensus_eip_only_from_eip_codes")
     )
 
-# --- Birleşim & sıralama ---
 sku_df = pd.concat([proj_name_month, cons_name_month], axis=1).reset_index()
 sku_df = sku_df.sort_values(["PRODUCT_KEY", "month_ts"])
 
-# --- DOC fonksiyonları ---
 MAX_DOC_IF_NO_RUNOUT = 600
 DAYS_PER_MONTH       = 30
 CONSENSUS_UNIT_MULTIPLIER = 1.0
@@ -325,14 +254,12 @@ def compute_doc_per_product(sdf):
     sdf["DOC_days"] = docs
     return sdf
 
-# --- Ürün adı (SKU) bazında DOC ---
 sku_doc_res = (
     sku_df.groupby(["PRODUCT_KEY", name_col], group_keys=False)
           .apply(compute_doc_per_product)
           .reset_index(drop=True)
 )
 
-# --- ÇIKTI İÇİN material_code'u yine birleştir (3'lü vs. kalabilir) ---
 if mat_col:
     code_map = (
         df[[mat_col, "PRODUCT_KEY", name_col]]
@@ -346,7 +273,6 @@ if mat_col:
 else:
     sku_doc_res["material_code"] = np.nan
 
-# --- Toplam görünüm (eski mantık) ---
 sku_doc_res_core = sku_doc_res.copy()
 total_monthly = (
     sku_doc_res_core.groupby("month_ts")[["monthly_projected_all_plants","monthly_consensus_eip_only_from_eip_codes"]]
@@ -367,64 +293,52 @@ for i in range(len(months)):
     doc_vals_total.append(doc_days_from_stock(stock_total.iloc[i], dem_total.iloc[i+1:]))
 total_monthly["DOC_days"] = doc_vals_total
 
-print("Hazır: sku_doc_res (ürün bazlı DOC, konsensus sadece EIP'e ait kodlardan) ve total_monthly (toplam).")
+# ===== Ön izleme + İndirmeler =====
+st.subheader("📁 Yüklenen Veri")
+tab1, tab2 = st.tabs(["Tümü", "Sadece 'consensus' & 'projected stock'"])
+with tab1:
+    st.dataframe(df, use_container_width=True)
+with tab2:
+    st.dataframe(df[df["_kf_class"].isin(["consensus", "projected_stock"])], use_container_width=True)
 
-# =================================
-# 4. BLOK (Colab eşleniği) – İndirme
-# =================================
+st.subheader("📊 DOC Sonuç Tablosu (Toplam)")
+total_monthly_reset = total_monthly.reset_index(names=["month"])
+st.dataframe(total_monthly_reset, use_container_width=True)
 
-# Ürün bazlı çıktı
+# Excel çıktıları
 cols_order = [
     "PRODUCT_KEY", "product_name", "material_code",
     "month", "proj_stock_all_plants", "consensus_eip_only", "DOC_days"
 ]
 
-out_df = sku_doc_res.copy()
-
-# Gerekli yeniden adlandırmalar
-rename_map = {
+out_df = sku_doc_res.copy().rename(columns={
     "month_ts": "month",
     "monthly_projected_all_plants": "proj_stock_all_plants",
     "monthly_consensus_eip_only_from_eip_codes": "consensus_eip_only",
     name_col: "product_name",
-}
-out_df = out_df.rename(columns=rename_map)
-
-# material_code yoksa ve orijinal kod kolonu duruyorsa onu material_code yap
+})
 if "material_code" not in out_df.columns and 'mat_col' in globals() and mat_col in out_df.columns:
     out_df = out_df.rename(columns={mat_col: "material_code"})
-
-# Sadece var olan kolonları yaz
 out_df = out_df[[c for c in cols_order if c in out_df.columns]]
 
-# Bellekte Excel yaz (ürün bazlı)
 prod_buffer = io.BytesIO()
 with pd.ExcelWriter(prod_buffer, engine="xlsxwriter") as writer:
     out_df.to_excel(writer, index=False, sheet_name="product_monthly_doc")
 prod_buffer.seek(0)
 
-# Toplam çıktı
 total_buffer = io.BytesIO()
-total_monthly_reset = total_monthly.reset_index(names=["month"])
 with pd.ExcelWriter(total_buffer, engine="xlsxwriter") as writer:
     total_monthly_reset.to_excel(writer, index=False, sheet_name="DOC_summary")
 total_buffer.seek(0)
 
-# İndirme butonları
 c1, c2 = st.columns(2)
 with c1:
-    st.download_button(
-        label="⬇️ DOC_by_PRODUCT.xlsx",
-        data=prod_buffer,
-        file_name="DOC_by_PRODUCT.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
-    )
+    st.download_button("⬇️ Excel'i indir (DOC_by_PRODUCT.xlsx)", prod_buffer,
+                       file_name="DOC_by_PRODUCT.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                       use_container_width=True)
 with c2:
-    st.download_button(
-        label="⬇️ DOC_summary.xlsx",
-        data=total_buffer,
-        file_name="DOC_summary.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
-    )
+    st.download_button("⬇️ Excel'i indir (DOC_summary.xlsx)", total_buffer,
+                       file_name="DOC_summary.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                       use_container_width=True)
