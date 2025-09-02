@@ -11,7 +11,7 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(page_title="Days of Coverage (DOC) Hesaplayıcı", layout="wide")
-st.title("🧮 Days of Coverage (DOC) Hesaplayıcı")
+st.title("📦 Days of Coverage (DOC) Hesaplayıcı")
 st.caption("Excel yükleyin → projected stock ve consensus demand üzerinden DOC hesaplayın.")
 
 uploaded_file = st.file_uploader("Excel'i sürükleyip bırakın", type=["xlsx"])
@@ -342,3 +342,4 @@ with c2:
                        file_name="DOC_summary.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                        use_container_width=True)
+
