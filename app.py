@@ -1,4 +1,4 @@
-# app.py (temizlenmiş sürüm)
+# app.py (temizlenmiş sürüm, indentation fix)
 # -*- coding: utf-8 -*-
 
 import io
@@ -96,14 +96,12 @@ def first_match(candidates, columns):
     return next((c for c in candidates if c in columns), None)
 
 # Güvenli seri çekme
-
 def safe_series(df_in: pd.DataFrame, colname: str):
     if colname in df_in.columns:
         return df_in[colname].astype(str).fillna("")
     return pd.Series([""] * len(df_in), index=df_in.index)
 
 # DOC hesaplayıcılar
-
 def doc_days_from_stock(stock_val, future_monthly_demand):
     if pd.isna(stock_val) or float(stock_val) <= 0:
         return 0.0
@@ -184,7 +182,6 @@ if mat_col:
     df[mat_col] = df[mat_col].astype(str).str.strip()
 
 # Ürün anahtarı
-# keep_case=False → küçük harf/diakritiksiz anahtar
 df["PRODUCT_KEY"] = df[name_col].map(lambda s: norm_text(s, keep_case=False))
 
 # Plant normalizasyonu (EIP/GP)
@@ -196,7 +193,6 @@ df["_plant_norm"] = df["_plant_norm"].str.extract(r"(EIP|GP)", expand=False)
 # ============================
 # 2) Wide → Long ve metrik inşası
 # ============================
-# Melt için ID kolonlarını topla
 id_keep = [c for c in df.columns if c not in month_names]
 for extra in ["PRODUCT_KEY", name_col, "_plant_norm"]:
     if extra not in id_keep:
@@ -204,7 +200,6 @@ for extra in ["PRODUCT_KEY", name_col, "_plant_norm"]:
 if mat_col and mat_col not in id_keep:
     id_keep.append(mat_col)
 
-# Long form
 df_long = df.melt(
     id_vars=id_keep,
     value_vars=month_names,
@@ -216,21 +211,17 @@ df_long["month_ts"] = df_long["month_col"].map(col_to_ts)
 df_long["_kf_class_long"] = df_long[KF_COL].map(classify_kf)
 df_long["value"] = pd.to_numeric(df_long["value"], errors="coerce")
 
-# Projected ve consensus maskeleri
 mask_projected = df_long["_kf_class_long"].eq("projected_stock")
 mask_consensus_any = df_long["_kf_class_long"].eq("consensus")
 
-# A) ÜRÜN x AY → Projected Stock (tüm plantlar toplamı)
 proj_name_month = (
     df_long.loc[mask_projected]
-    .dropna(subset=["PRODUCT_KEY", name_col, "month_ts"]) 
-    .groupby(["PRODUCT_KEY", name_col, "month_ts"]) ["value"].sum()
+    .dropna(subset=["PRODUCT_KEY", name_col, "month_ts"])
+    .groupby(["PRODUCT_KEY", name_col, "month_ts"])["value"].sum()
     .rename("monthly_projected_all_plants")
 )
 
-# B) ÜRÜN x AY → Consensus (YALNIZCA EIP)
 if mat_col:
-    # Malzeme kodu EIP'e ait mi? (grupta en az bir satır EIP ise True)
     eip_code_flag = (
         df_long.dropna(subset=["PRODUCT_KEY", name_col, mat_col])
         .assign(_is_eip_code=lambda x: x["_plant_norm"].eq("EIP"))
@@ -241,25 +232,24 @@ if mat_col:
 
     cons_df = (
         df_long.loc[mask_consensus_any]
-        .dropna(subset=["PRODUCT_KEY", name_col, mat_col, "month_ts"]) 
+        .dropna(subset=["PRODUCT_KEY", name_col, mat_col, "month_ts"])
         .merge(eip_code_flag, on=["PRODUCT_KEY", name_col, mat_col], how="left")
     )
     cons_df = cons_df[cons_df["_belongs_to_EIP"] == True]
     cons_name_month = (
-        cons_df.groupby(["PRODUCT_KEY", name_col, "month_ts"]) ["value"].sum()
+        cons_df.groupby(["PRODUCT_KEY", name_col, "month_ts"])["value"].sum()
         .rename("monthly_consensus_eip_only_from_eip_codes")
     )
 else:
     cons_name_month = (
         df_long.loc[mask_consensus_any & df_long["_plant_norm"].eq("EIP")]
-        .dropna(subset=["PRODUCT_KEY", name_col, "month_ts"]) 
-        .groupby(["PRODUCT_KEY", name_col, "month_ts"]) ["value"].sum()
+        .dropna(subset=["PRODUCT_KEY", name_col, "month_ts"])
+        .groupby(["PRODUCT_KEY", name_col, "month_ts"])["value"].sum()
         .rename("monthly_consensus_eip_only_from_eip_codes")
     )
 
-# Ürün x Ay birleşik tablo
 sku_df = pd.concat([proj_name_month, cons_name_month], axis=1).reset_index()
-sku_df = sku_df.sort_values(["PRODUCT_KEY", "month_ts"]) 
+sku_df = sku_df.sort_values(["PRODUCT_KEY", "month_ts"])
 
 # ============================
 # 3) DOC Hesabı (Ürün)
@@ -270,7 +260,6 @@ sku_doc_res = (
     .reset_index(drop=True)
 )
 
-# Malzeme kodu çıktısı (ürün bazında birleşik)
 if mat_col:
     code_map = (
         df[[mat_col, "PRODUCT_KEY", name_col]]
@@ -287,7 +276,6 @@ else:
 # ============================
 # 4) TOPLAM (EIP+GP) Aylık DOC
 # ============================
-# Ürün sonuçlarından türet (orijinal mantık korunur)
 total_monthly = (
     sku_doc_res.groupby("month_ts")[[
         "monthly_projected_all_plants",
@@ -325,7 +313,6 @@ st.subheader("📊 DOC Sonuç Tablosu (Toplam)")
 total_monthly_reset = total_monthly.reset_index(names=["month"])
 st.dataframe(total_monthly_reset, use_container_width=True)
 
-# Excel çıktıları (Kolon adları/isimleri eskisiyle birebir korunmuştur)
 cols_order = [
     "PRODUCT_KEY",
     "product_name",
@@ -350,7 +337,6 @@ if "material_code" not in out_df.columns and mat_col and mat_col in out_df.colum
 
 out_df = out_df[[c for c in cols_order if c in out_df.columns]]
 
-# Belleğe yaz ve indir butonları
 prod_buffer = io.BytesIO()
 with pd.ExcelWriter(prod_buffer, engine="xlsxwriter") as writer:
     out_df.to_excel(writer, index=False, sheet_name="product_monthly_doc")
@@ -359,7 +345,7 @@ prod_buffer.seek(0)
 total_buffer = io.BytesIO()
 with pd.ExcelWriter(total_buffer, engine="xlsxwriter") as writer:
     total_monthly_reset.to_excel(writer, index=False, sheet_name="DOC_summary")
- total_buffer.seek(0)
+total_buffer.seek(0)
 
 c1, c2 = st.columns(2)
 with c1:
